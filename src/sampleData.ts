@@ -3,7 +3,7 @@ import type { DailyWorkout } from './types';
 
 // Invented placeholder workouts, written the way community comments look so they
 // exercise the real parser. Shown only when no Reddit client id is configured.
-const SAMPLE_COMMENTS: Record<number, { author: string; score: number; body: string }[]> = {
+export const SAMPLE_COMMENTS: Record<number, { author: string; score: number; body: string }[]> = {
   0: [
     {
       author: 'sample_user_1',

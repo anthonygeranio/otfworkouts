@@ -1,0 +1,2 @@
+# Local development only: use sample workouts instead of calling Reddit.
+FAKE_REDDIT=1

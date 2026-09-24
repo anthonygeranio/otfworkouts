@@ -1,0 +1,17 @@
+{
+  "name": "class-preview-notifier",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  // Check the daily thread every 10 minutes.
+  "triggers": { "crons": ["*/10 * * * *"] },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "class-preview",
+      // Replace with the id printed by `npx wrangler d1 create class-preview`.
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+    }
+  ]
+  // Secrets (set with `npx wrangler secret put <NAME>`):
+  //   REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET
+}

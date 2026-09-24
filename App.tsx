@@ -1,8 +1,10 @@
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useEffect, useState } from 'react';
+import * as Notifications from 'expo-notifications';
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Pressable,
   RefreshControl,
@@ -13,6 +15,13 @@ import {
   View,
 } from 'react-native';
 
+import {
+  disableNotifications,
+  enableNotifications,
+  isEnabled,
+  notificationsSupported,
+  refreshRegistration,
+} from './src/notifications';
 import type { DailyWorkout, Station, WorkoutPost } from './src/types';
 import { dateFor, loadWorkout } from './src/workouts';
 
@@ -68,6 +77,29 @@ function Home() {
     load(daysAgo, true).finally(() => setLoading(false));
   }, [daysAgo, load]);
 
+  const [notifyOn, setNotifyOn] = useState(false);
+  const [notifyBusy, setNotifyBusy] = useState(false);
+
+  useEffect(() => {
+    if (!notificationsSupported) return;
+    isEnabled().then(setNotifyOn);
+    refreshRegistration();
+    // Tapping "Today's workout is up" jumps to today and pulls fresh comments.
+    const sub = Notifications.addNotificationResponseReceivedListener(() => {
+      setDaysAgo(0);
+      load(0, false);
+    });
+    return () => sub.remove();
+  }, [load]);
+
+  const toggleNotifications = async () => {
+    setNotifyBusy(true);
+    const error = notifyOn ? await disableNotifications() : await enableNotifications();
+    setNotifyBusy(false);
+    if (error) Alert.alert('Notifications', error);
+    else setNotifyOn(!notifyOn);
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
     await load(daysAgo, false);
@@ -80,8 +112,28 @@ function Home() {
     <SafeAreaView style={[styles.root, { backgroundColor: c.bg }]}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <View style={styles.header}>
-        <Text style={[styles.appName, { color: c.accent }]}>Class Preview</Text>
-        <Text style={[styles.subtitle, { color: c.muted }]}>Today's class, as the community posted it</Text>
+        <View style={styles.headerText}>
+          <Text style={[styles.appName, { color: c.accent }]}>Class Preview</Text>
+          <Text style={[styles.subtitle, { color: c.muted }]}>Today's class, as the community posted it</Text>
+        </View>
+        {notificationsSupported && (
+          <Pressable
+            onPress={toggleNotifications}
+            disabled={notifyBusy}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: notifyOn, busy: notifyBusy }}
+            accessibilityLabel="Notify me when today's workout is posted"
+            style={[styles.bell, { backgroundColor: notifyOn ? c.accent : c.chip }]}
+          >
+            {notifyBusy ? (
+              <ActivityIndicator size="small" color={notifyOn ? '#FFFFFF' : c.accent} />
+            ) : (
+              <Text style={[styles.bellText, { color: notifyOn ? '#FFFFFF' : c.text }]}>
+                {notifyOn ? '🔔 On' : '🔕 Notify me'}
+              </Text>
+            )}
+          </Pressable>
+        )}
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.days} contentContainerStyle={styles.daysContent}>
@@ -219,7 +271,10 @@ function Empty({ c, title, body }: { c: Colors; title: string; body: string }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
+  headerText: { flex: 1 },
+  bell: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, minWidth: 64, alignItems: 'center' },
+  bellText: { fontSize: 13, fontWeight: '700' },
   appName: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
   subtitle: { fontSize: 14, marginTop: 2 },
   days: { flexGrow: 0 },

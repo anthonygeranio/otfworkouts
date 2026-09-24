@@ -23,4 +23,11 @@ It uses built-in sample data until you add a Reddit client id.
 - `src/parser.ts` turns each free-form comment into Tread / Rower / Floor sections.
 - `src/workouts.ts` caches each day on the device for up to 6 hours, so deleted Reddit comments drop out. Pulling down refreshes.
 
+## Notifications
+
+The bell button subscribes the phone to a push when the day's workout is posted.
+This needs the notifier server in `server/` deployed (see `server/README.md`),
+`EXPO_PUBLIC_API_URL` set, and an EAS project id (`npx eas-cli init`).
+Push works in Expo Go on iPhone; Android needs a development build.
+
 Not affiliated with Orangetheory Fitness. Keep it free, credit the posters, and follow Reddit's API terms.

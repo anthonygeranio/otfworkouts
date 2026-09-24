@@ -1,4 +1,5 @@
-import { guessTemplate, looksLikeWorkout, parseWorkout } from './parser';
+import { guessTemplate, parseWorkout } from './parser';
+import { isDailyThread, SUBREDDIT, workoutComments, type RedditComment } from './redditThread';
 import type { DailyWorkout, WorkoutPost } from './types';
 
 // Register an "installed app" at https://www.reddit.com/prefs/apps and put its
@@ -6,9 +7,6 @@ import type { DailyWorkout, WorkoutPost } from './types';
 // secret, so the id is safe to ship inside the app binary.
 const CLIENT_ID = process.env.EXPO_PUBLIC_REDDIT_CLIENT_ID ?? '';
 const USER_AGENT = 'mobile:class-preview:v0.1 (community workout reader)';
-const SUBREDDIT = 'orangetheory';
-// Title words the daily thread uses. Confirm against the live subreddit.
-const THREAD_TITLE_PATTERN = /daily|workout of the day|today'?s workout/i;
 
 export const isRedditConfigured = () => CLIENT_ID.length > 0;
 
@@ -54,20 +52,19 @@ export async function fetchDailyWorkout(date: string): Promise<DailyWorkout | nu
   const listing = await redditGet(`/r/${SUBREDDIT}/new?limit=100&raw_json=1`);
   const thread = listing.data.children
     .map((c: any) => c.data)
-    .find((p: any) => THREAD_TITLE_PATTERN.test(p.title) && localDate(p.created_utc) === date);
+    .find((p: any) => isDailyThread(p) && localDate(p.created_utc) === date);
   if (!thread) return null;
 
   const [, comments] = await redditGet(`/comments/${thread.id}?sort=top&depth=1&limit=50&raw_json=1`);
-  const posts: WorkoutPost[] = comments.data.children
-    .filter((c: any) => c.kind === 't1' && !c.data.stickied && looksLikeWorkout(c.data.body))
-    .map((c: any) => ({
-      id: c.data.id,
-      author: c.data.author,
-      score: c.data.score,
-      permalink: `https://www.reddit.com${c.data.permalink}`,
-      body: c.data.body,
-      sections: parseWorkout(c.data.body),
-    }));
+  const topLevel: RedditComment[] = comments.data.children.filter((c: any) => c.kind === 't1').map((c: any) => c.data);
+  const posts: WorkoutPost[] = workoutComments(topLevel).map((c) => ({
+    id: c.id,
+    author: c.author,
+    score: c.score,
+    permalink: `https://www.reddit.com${c.permalink}`,
+    body: c.body,
+    sections: parseWorkout(c.body),
+  }));
 
   const topOverview = posts[0]?.sections.find((s) => s.station === 'notes')?.lines.join(' ') ?? '';
   return {
