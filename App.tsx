@@ -7,6 +7,7 @@ import {
   Alert,
   Image,
   Linking,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -19,7 +20,9 @@ import {
 import {
   disableNotifications,
   enableNotifications,
+  hasSeenIntro,
   isEnabled,
+  markIntroSeen,
   notificationsSupported,
   refreshRegistration,
 } from './src/notifications';
@@ -80,10 +83,15 @@ function Home() {
 
   const [notifyOn, setNotifyOn] = useState(false);
   const [notifyBusy, setNotifyBusy] = useState(false);
+  const [showIntro, setShowIntro] = useState(false);
 
   useEffect(() => {
     if (!notificationsSupported) return;
-    isEnabled().then(setNotifyOn);
+    isEnabled().then(async (on) => {
+      setNotifyOn(on);
+      // Offer the explainer once, to people who haven't turned it on.
+      if (!on && !(await hasSeenIntro())) setShowIntro(true);
+    });
     refreshRegistration();
     // Tapping "Today's workout is up" jumps to today and pulls fresh comments.
     const sub = Notifications.addNotificationResponseReceivedListener(() => {
@@ -101,6 +109,16 @@ function Home() {
     else setNotifyOn(!notifyOn);
   };
 
+  const dismissIntro = () => {
+    setShowIntro(false);
+    markIntroSeen();
+  };
+
+  const enableFromIntro = async () => {
+    dismissIntro();
+    if (!notifyOn) await toggleNotifications();
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
     await load(daysAgo, false);
@@ -112,6 +130,13 @@ function Home() {
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: c.bg }]}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+      <NotifyIntro
+        c={c}
+        visible={showIntro}
+        busy={notifyBusy}
+        onEnable={enableFromIntro}
+        onDismiss={dismissIntro}
+      />
       <View style={styles.header}>
         <View style={styles.headerText}>
           <Text style={[styles.appName, { color: c.accent }]}>OTF Workouts</Text>
@@ -251,6 +276,56 @@ function SectionCard({ c, station, title, lines }: { c: Colors; station: Station
   );
 }
 
+function NotifyIntro({
+  c,
+  visible,
+  busy,
+  onEnable,
+  onDismiss,
+}: {
+  c: Colors;
+  visible: boolean;
+  busy: boolean;
+  onEnable: () => void;
+  onDismiss: () => void;
+}) {
+  const points: [string, string][] = [
+    ['⚡', 'Know the moment it drops. We watch the r/orangetheory thread and ping you as soon as the workout is posted — no digging through comments.'],
+    ['🕕', 'A heads-up before class. The alert usually lands within ~10 minutes of the workout being posted, so you can plan your morning.'],
+    ['😴', 'Never at a bad hour. Alerts are held until 6am your time — you get one a day, and nothing overnight.'],
+  ];
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
+      <View style={styles.modalBackdrop}>
+        <View style={[styles.modalCard, { backgroundColor: c.card }]}>
+          <Text style={styles.modalEmoji}>🔔</Text>
+          <Text style={[styles.modalTitle, { color: c.text }]}>Get today's workout first</Text>
+          <Text style={[styles.modalSubtitle, { color: c.muted }]}>
+            Turn on notifications and we'll send you the day's OTF class as soon as it's posted.
+          </Text>
+          {points.map(([icon, text]) => (
+            <View key={icon} style={styles.modalPoint}>
+              <Text style={styles.modalPointIcon}>{icon}</Text>
+              <Text style={[styles.modalPointText, { color: c.text }]}>{text}</Text>
+            </View>
+          ))}
+          <Pressable
+            onPress={onEnable}
+            disabled={busy}
+            style={[styles.modalPrimary, { backgroundColor: c.accent }]}
+            accessibilityRole="button"
+          >
+            {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.modalPrimaryText}>Turn on notifications</Text>}
+          </Pressable>
+          <Pressable onPress={onDismiss} accessibilityRole="button">
+            <Text style={[styles.modalSecondary, { color: c.muted }]}>Not now</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function WorkoutImages({ c, urls }: { c: Colors; urls?: string[] }) {
   if (!urls?.length) return null;
   return (
@@ -346,4 +421,15 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontWeight: '700' },
   emptyBody: { fontSize: 14, textAlign: 'center', maxWidth: 280 },
   disclaimer: { fontSize: 12, textAlign: 'center', marginTop: 24, lineHeight: 18 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', padding: 20 },
+  modalCard: { borderRadius: 20, padding: 24 },
+  modalEmoji: { fontSize: 40, textAlign: 'center' },
+  modalTitle: { fontSize: 22, fontWeight: '800', textAlign: 'center', marginTop: 8 },
+  modalSubtitle: { fontSize: 15, lineHeight: 21, textAlign: 'center', marginTop: 8, marginBottom: 16 },
+  modalPoint: { flexDirection: 'row', gap: 12, marginBottom: 14 },
+  modalPointIcon: { fontSize: 20, width: 24, textAlign: 'center' },
+  modalPointText: { flex: 1, fontSize: 14, lineHeight: 20 },
+  modalPrimary: { borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 8 },
+  modalPrimaryText: { color: '#FFFFFF', fontWeight: '800', fontSize: 16 },
+  modalSecondary: { textAlign: 'center', fontSize: 15, fontWeight: '600', paddingVertical: 14 },
 });

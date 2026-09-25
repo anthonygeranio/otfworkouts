@@ -8,6 +8,7 @@ import { Platform } from 'react-native';
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
 const ENABLED_KEY = 'notifications:enabled';
 const TOKEN_KEY = 'notifications:token';
+const INTRO_KEY = 'notifications:introSeen';
 
 export const notificationsSupported = Platform.OS !== 'web';
 
@@ -26,6 +27,23 @@ export async function isEnabled(): Promise<boolean> {
     return (await AsyncStorage.getItem(ENABLED_KEY)) === '1';
   } catch {
     return false;
+  }
+}
+
+/** Whether the one-time "turn on notifications" explainer has been shown/dismissed. */
+export async function hasSeenIntro(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(INTRO_KEY)) === '1';
+  } catch {
+    return true; // On error, don't nag.
+  }
+}
+
+export async function markIntroSeen() {
+  try {
+    await AsyncStorage.setItem(INTRO_KEY, '1');
+  } catch {
+    // Best-effort.
   }
 }
 
