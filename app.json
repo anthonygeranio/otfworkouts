@@ -29,6 +29,12 @@
           "color": "#EA580C"
         }
       ]
-    ]
+    ],
+    "owner": "anthonygeranio",
+    "extra": {
+      "eas": {
+        "projectId": "e634d5b1-2549-4894-a1af-da5b0de2dd77"
+      }
+    }
   }
 }
