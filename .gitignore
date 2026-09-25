@@ -43,3 +43,6 @@ yarn-error.*
 # secrets
 .env
 class-preview/
+
+# internal submission notes (contain contact + strategy)
+store/

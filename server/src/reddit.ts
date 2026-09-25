@@ -9,7 +9,7 @@ export interface RedditEnv {
 }
 
 // Reddit publishes these RSS feeds for readers. Identify honestly and back off on 429.
-const USER_AGENT = 'web:class-preview:v0.2 (daily workout reader by /u/heftyitaliannyc)';
+const USER_AGENT = 'web:otf-workouts:v0.2 (+https://github.com/anthonygeranio/otfworkouts)';
 const BASE = 'https://www.reddit.com';
 
 async function fetchFeed(path: string): Promise<string> {
