@@ -1,13 +1,13 @@
-# App Store listing — OTF Workouts
+# App Store listing — Daily Workouts for OTF
 
 Copy-paste these into App Store Connect. Character limits are Apple's.
 
 ## App name (max 30)
 ```
-OTF Workouts
+Daily Workouts for OTF
 ```
-> ⚠️ Trademark risk — see `store/IMPORTANT-trademark.md`. A safer alternative that
-> still ranks for the term: `Daily Workouts for OTF` (23 chars).
+> Descriptive "<generic> for <brand>" name — lowers (does not eliminate) the
+> trademark risk. See `store/IMPORTANT-trademark.md`.
 
 ## Subtitle (max 30)
 ```

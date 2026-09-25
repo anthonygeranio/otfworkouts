@@ -108,6 +108,36 @@
     </div></div>
   </div>
 
+  <!-- SCREEN 3: history -->
+  <div class="screen" id="s3">
+    <div class="cap">
+      <span class="pill"><span class="dot">●</span> Never Miss A Day</span>
+      <div class="headline">Every Class,<br><span class="o">All Week</span></div>
+      <div class="sub">Scroll back through the week to catch up or see what's coming.</div>
+    </div>
+    <div class="phone"><div class="app">
+      <div class="statusbar"><span>8:30</span><span class="r"><span>●●●</span><span>📶</span><span class="batt">51</span></span></div>
+      <div class="apphead">
+        <div class="t"><div class="appname">OTF Workouts</div><div class="appsub">Today's OTF class, as the community posted it</div></div>
+        <div class="onpill">🔔 On</div>
+      </div>
+      <div class="chips"><span class="chip">Today</span><span class="chip sel">Yesterday</span><span class="chip">Wed 23</span><span class="chip">Tue 22</span></div>
+      <div class="daytitle"><span class="d">Yesterday</span><span class="badge">ESP</span></div>
+      <div class="card tread"><div class="cardh o">🏃 Tread Block – 22 minutes</div>
+        <div class="blt"><span class="b">•</span><span class="x">3 min push pace @ 3–4% incline</span></div>
+        <div class="blt"><span class="b">•</span><span class="x">2 min base, then 1 min all-out</span></div>
+        <div class="blt"><span class="b">•</span><span class="x">Repeat, adding incline each round</span></div>
+      </div>
+      <div class="card" style="border-left-color:#0891b2"><div class="cardh" style="color:#22d3ee">🚣 Row Block – 12 minutes</div>
+        <div class="blt"><span class="b" style="color:#22d3ee">•</span><span class="x">500m row, then 12 squats</span></div>
+        <div class="blt"><span class="b" style="color:#22d3ee">•</span><span class="x">400m row, then 10 squats — descending</span></div>
+      </div>
+      <div class="card"><div class="cardh p">🏋️ Floor Block – 16 minutes</div>
+        <div class="blt"><span class="b" style="color:#a78bfa">•</span><span class="x">10 chest press · 10 low row · 12 lunges</span></div>
+      </div>
+    </div></div>
+  </div>
+
   <!-- SCREEN 2: notifications -->
   <div class="screen" id="s2">
     <div class="cap">
@@ -148,7 +178,7 @@ async function renderToPng(id){
   const ctx = cv.getContext('2d'); ctx.drawImage(img,0,0);
   return cv.toDataURL('image/png').split(',')[1];
 }
-window.__make = async ()=>{ window.__p1 = await renderToPng('s1'); window.__p2 = await renderToPng('s2'); window.__ready = true; return {p1:window.__p1.length, p2:window.__p2.length}; };
+window.__make = async ()=>{ window.__p1 = await renderToPng('s1'); window.__p2 = await renderToPng('s2'); window.__p3 = await renderToPng('s3'); window.__ready = true; return {p1:window.__p1.length, p2:window.__p2.length, p3:window.__p3.length}; };
 </script>
 </body>
 </html>

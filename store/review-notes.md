@@ -1,7 +1,7 @@
 # Notes for the App Review team (paste into "App Review Information → Notes")
 
 ```
-OTF Workouts is an independent, unofficial reader for the public r/orangetheory
+Daily Workouts for OTF is an independent, unofficial reader for the public r/orangetheory
 subreddit's daily workout thread. It is not affiliated with Orangetheory Fitness
 or Reddit, and it states this in the app and in the description.
 

@@ -9,7 +9,7 @@
       "binding": "DB",
       "database_name": "class-preview",
       // Replace with the id printed by `npx wrangler d1 create class-preview`.
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+      "database_id": "39717661-054c-41f5-aa79-0e427307b6d6"
     }
   ]
   // No secrets needed: the server reads Reddit's public RSS feeds.
