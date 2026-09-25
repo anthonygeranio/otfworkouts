@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Class Preview",
+    "name": "OTF Workouts",
     "slug": "class-preview",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -28,7 +28,8 @@
         {
           "color": "#EA580C"
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "owner": "anthonygeranio",
     "extra": {

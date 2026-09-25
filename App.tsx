@@ -114,8 +114,8 @@ function Home() {
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <View style={styles.header}>
         <View style={styles.headerText}>
-          <Text style={[styles.appName, { color: c.accent }]}>Class Preview</Text>
-          <Text style={[styles.subtitle, { color: c.muted }]}>Today's class, as the community posted it</Text>
+          <Text style={[styles.appName, { color: c.accent }]}>OTF Workouts</Text>
+          <Text style={[styles.subtitle, { color: c.muted }]}>Today's OTF class, as the community posted it</Text>
         </View>
         {notificationsSupported && (
           <Pressable
@@ -144,7 +144,9 @@ function Home() {
             onPress={() => setDaysAgo(i)}
             style={[styles.dayChip, { backgroundColor: i === daysAgo ? c.accent : c.chip }]}
           >
-            <Text style={[styles.dayChipText, { color: i === daysAgo ? '#FFFFFF' : c.text }]}>{dayLabel(i)}</Text>
+            <Text numberOfLines={1} style={[styles.dayChipText, { color: i === daysAgo ? '#FFFFFF' : c.text }]}>
+              {dayLabel(i)}
+            </Text>
           </Pressable>
         ))}
       </ScrollView>
@@ -221,11 +223,30 @@ function SectionCard({ c, station, title, lines }: { c: Colors; station: Station
       <Text style={[styles.cardTitle, { color: meta.tint }]}>
         {meta.icon}  {station === 'notes' ? meta.label : title}
       </Text>
-      {lines.map((line, i) => (
-        <Text key={i} style={[styles.cardLine, { color: c.text }]}>
-          {line}
-        </Text>
-      ))}
+      {lines.map((line, i) => {
+        // Overview reads as sentences; workout blocks read as bullets, with
+        // "→" transition lines set apart.
+        if (station === 'notes') {
+          return (
+            <Text key={i} style={[styles.noteLine, { color: c.text }]}>
+              {line}
+            </Text>
+          );
+        }
+        if (line.startsWith('→')) {
+          return (
+            <Text key={i} style={[styles.transition, { color: c.muted }]}>
+              {line}
+            </Text>
+          );
+        }
+        return (
+          <View key={i} style={styles.bulletRow}>
+            <Text style={[styles.bulletDot, { color: meta.tint }]}>•</Text>
+            <Text style={[styles.bulletText, { color: c.text }]}>{line}</Text>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -295,9 +316,9 @@ const styles = StyleSheet.create({
   bellText: { fontSize: 13, fontWeight: '700' },
   appName: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
   subtitle: { fontSize: 14, marginTop: 2 },
-  days: { flexGrow: 0 },
-  daysContent: { paddingHorizontal: 16, paddingVertical: 8, gap: 8 },
-  dayChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 },
+  days: { flexGrow: 0, flexShrink: 0, height: 52 },
+  daysContent: { alignItems: 'center', paddingHorizontal: 16, gap: 8 },
+  dayChip: { justifyContent: 'center', height: 36, paddingHorizontal: 16, borderRadius: 999 },
   dayChipText: { fontSize: 14, fontWeight: '600' },
   content: { padding: 16, paddingBottom: 48, gap: 12 },
   banner: { borderWidth: 1, borderStyle: 'dashed', borderRadius: 10, padding: 10 },
@@ -307,8 +328,12 @@ const styles = StyleSheet.create({
   templateBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
   templateText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
   card: { borderWidth: 1, borderLeftWidth: 4, borderRadius: 12, padding: 14, gap: 4 },
-  cardTitle: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
-  cardLine: { fontSize: 15, lineHeight: 22 },
+  cardTitle: { fontSize: 17, fontWeight: '800', marginBottom: 8 },
+  noteLine: { fontSize: 15, lineHeight: 22, marginBottom: 4 },
+  bulletRow: { flexDirection: 'row', gap: 8, marginBottom: 6 },
+  bulletDot: { fontSize: 15, lineHeight: 22, fontWeight: '900' },
+  bulletText: { flex: 1, fontSize: 15, lineHeight: 22 },
+  transition: { fontSize: 13, fontStyle: 'italic', marginTop: 2, marginBottom: 6 },
   workoutImage: { width: '100%', height: 320, borderRadius: 12, borderWidth: 1 },
   credit: { fontSize: 13, textAlign: 'right' },
   moreHeading: { fontSize: 12, fontWeight: '700', letterSpacing: 1, marginTop: 16 },
