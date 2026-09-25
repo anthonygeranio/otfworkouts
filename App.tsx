@@ -5,6 +5,7 @@ import * as Notifications from 'expo-notifications';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Linking,
   Pressable,
   RefreshControl,
@@ -155,7 +156,7 @@ function Home() {
         {workout?.source === 'sample' && (
           <View style={[styles.banner, { borderColor: c.accent }]}>
             <Text style={[styles.bannerText, { color: c.text }]}>
-              Sample data. Add a Reddit client id to load the real daily thread.
+              Sample data. Set EXPO_PUBLIC_API_URL to your server to load the real daily workout.
             </Text>
           </View>
         )}
@@ -184,6 +185,7 @@ function Home() {
             {top.sections.map((section, i) => (
               <SectionCard key={i} c={c} station={section.station} title={section.title} lines={section.lines} />
             ))}
+            <WorkoutImages c={c} urls={top.imageUrls} />
             <Credit c={c} post={top} />
 
             {others.length > 0 && (
@@ -228,11 +230,28 @@ function SectionCard({ c, station, title, lines }: { c: Colors; station: Station
   );
 }
 
+function WorkoutImages({ c, urls }: { c: Colors; urls?: string[] }) {
+  if (!urls?.length) return null;
+  return (
+    <>
+      {urls.map((url) => (
+        <Image
+          key={url}
+          source={{ uri: url }}
+          style={[styles.workoutImage, { borderColor: c.border }]}
+          resizeMode="contain"
+          accessibilityLabel="Workout posted as an image"
+        />
+      ))}
+    </>
+  );
+}
+
 function Credit({ c, post }: { c: Colors; post: WorkoutPost }) {
   return (
     <Pressable onPress={() => Linking.openURL(post.permalink)}>
       <Text style={[styles.credit, { color: c.muted }]}>
-        ▲ {post.score} · posted by u/{post.author} · view comment ↗
+        {post.score != null ? `▲ ${post.score} · ` : ''}posted by u/{post.author} · view comment ↗
       </Text>
     </Pressable>
   );
@@ -244,15 +263,14 @@ function OtherPost({ c, post }: { c: Colors; post: WorkoutPost }) {
     <View style={[styles.other, { backgroundColor: c.card, borderColor: c.border }]}>
       <Pressable onPress={() => setOpen(!open)} style={styles.otherHeader}>
         <Text style={[styles.otherTitle, { color: c.text }]}>u/{post.author}</Text>
-        <Text style={{ color: c.muted }}>
-          ▲ {post.score}  {open ? '▾' : '▸'}
-        </Text>
+        <Text style={{ color: c.muted }}>{open ? '▾' : '▸'}</Text>
       </Pressable>
       {open && (
         <View style={styles.otherBody}>
           {post.sections.map((s, i) => (
             <SectionCard key={i} c={c} station={s.station} title={s.title} lines={s.lines} />
           ))}
+          <WorkoutImages c={c} urls={post.imageUrls} />
           <Credit c={c} post={post} />
         </View>
       )}
@@ -291,6 +309,7 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1, borderLeftWidth: 4, borderRadius: 12, padding: 14, gap: 4 },
   cardTitle: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
   cardLine: { fontSize: 15, lineHeight: 22 },
+  workoutImage: { width: '100%', height: 320, borderRadius: 12, borderWidth: 1 },
   credit: { fontSize: 13, textAlign: 'right' },
   moreHeading: { fontSize: 12, fontWeight: '700', letterSpacing: 1, marginTop: 16 },
   other: { borderWidth: 1, borderRadius: 12 },

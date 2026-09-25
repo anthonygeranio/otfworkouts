@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { fetchDailyWorkout, isRedditConfigured } from './reddit';
+import { fetchDailyWorkout, useSampleData } from './reddit';
 import { sampleWorkout } from './sampleData';
 import type { DailyWorkout } from './types';
 
@@ -43,7 +43,7 @@ function isFresh(workout: DailyWorkout): boolean {
  */
 export async function loadWorkout(daysAgo: number, preferCache = true): Promise<DailyWorkout | null> {
   const date = dateFor(daysAgo);
-  if (!isRedditConfigured()) return sampleWorkout(date, daysAgo);
+  if (useSampleData()) return sampleWorkout(date, daysAgo);
 
   let cached = await readCache(date);
   if (cached && !isFresh(cached)) {

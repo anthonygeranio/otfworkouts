@@ -10,10 +10,13 @@ export interface WorkoutSection {
 export interface WorkoutPost {
   id: string;
   author: string;
-  score: number;
+  /** Vote count when known (sample data); null from RSS, which omits scores. */
+  score: number | null;
   permalink: string;
   body: string;
   sections: WorkoutSection[];
+  /** Workouts posted as screenshots. */
+  imageUrls?: string[];
 }
 
 export interface DailyWorkout {

@@ -12,6 +12,5 @@
       "database_id": "REPLACE_WITH_D1_DATABASE_ID"
     }
   ]
-  // Secrets (set with `npx wrangler secret put <NAME>`):
-  //   REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET
+  // No secrets needed: the server reads Reddit's public RSS feeds.
 }
