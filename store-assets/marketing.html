@@ -1,0 +1,154 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background:#111; }
+  #stage { position: absolute; left:-99999px; top:0; }
+  .screen {
+    width: 1290px; height: 2796px; position: relative; overflow: hidden;
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: radial-gradient(120% 55% at 50% 0%, #3a1705 0%, #150b06 38%, #0b0b0d 70%);
+    color: #fff;
+  }
+  .cap { position:absolute; left:0; right:0; top:120px; text-align:center; padding:0 90px; }
+  .pill {
+    display:inline-flex; align-items:center; gap:16px; border:2px solid #EA580C;
+    color:#EA580C; font-weight:800; font-size:34px; letter-spacing:3px;
+    padding:18px 34px; border-radius:999px; text-transform:uppercase;
+  }
+  .pill .dot { font-size:26px; }
+  .headline { font-size:118px; line-height:1.03; font-weight:900; margin-top:44px; letter-spacing:-2px; }
+  .headline .o { color:#EA580C; }
+  .sub { font-size:40px; line-height:1.45; color:#b8b3ad; margin-top:34px; padding:0 40px; font-weight:500; }
+
+  /* phone */
+  .phone {
+    position:absolute; left:50%; transform:translateX(-50%); bottom:-46px;
+    width:1060px; height:1980px; background:#000; border-radius:96px;
+    border:14px solid #2a2a2e; box-shadow:0 40px 120px rgba(0,0,0,.6); overflow:hidden;
+  }
+  .app { position:absolute; inset:0; background:#0f0e0d; padding:0 40px; }
+  .statusbar { display:flex; justify-content:space-between; align-items:center; padding:34px 20px 10px; font-size:32px; font-weight:600; color:#f5f5f4; }
+  .statusbar .r { display:flex; gap:14px; align-items:center; }
+  .batt { border:3px solid #f5f5f4; border-radius:8px; padding:2px 8px; font-size:24px; }
+
+  .apphead { display:flex; align-items:flex-start; padding:16px 20px 0; }
+  .apphead .t { flex:1; }
+  .appname { color:#EA580C; font-size:52px; font-weight:900; letter-spacing:-1px; }
+  .appsub { color:#a8a29e; font-size:28px; margin-top:4px; }
+  .onpill { background:#EA580C; color:#fff; font-weight:800; font-size:28px; padding:14px 26px; border-radius:999px; }
+
+  .chips { display:flex; gap:16px; padding:28px 20px 6px; }
+  .chip { background:#26231f; color:#f5f5f4; font-size:28px; font-weight:600; padding:16px 26px; border-radius:999px; }
+  .chip.sel { background:#EA580C; color:#fff; }
+
+  .daytitle { display:flex; align-items:center; gap:18px; padding:22px 20px 6px; }
+  .daytitle .d { font-size:44px; font-weight:800; }
+  .badge { background:#EA580C; color:#fff; font-weight:800; font-size:28px; padding:8px 18px; border-radius:10px; }
+
+  .card { background:#1c1a18; border:2px solid #2e2b28; border-left:8px solid #7c3aed; border-radius:22px; padding:26px 28px; margin:16px 20px; }
+  .card.tread { border-left-color:#EA580C; }
+  .cardh { font-size:32px; font-weight:900; margin-bottom:14px; }
+  .cardh.o { color:#EA580C; }
+  .cardh.p { color:#a78bfa; }
+  .noteln { font-size:29px; line-height:1.5; color:#f5f5f4; margin-bottom:8px; }
+  .blt { display:flex; gap:16px; margin-bottom:12px; }
+  .blt .b { color:#EA580C; font-weight:900; font-size:29px; }
+  .blt .x { flex:1; font-size:29px; line-height:1.45; color:#f5f5f4; }
+
+  /* notification modal screen */
+  .dim { position:absolute; inset:0; background:rgba(0,0,0,.55); }
+  .modal { position:absolute; left:44px; right:44px; bottom:60px; background:#1b1a18; border-radius:44px; padding:56px 48px; }
+  .bell { font-size:96px; text-align:center; }
+  .mtitle { font-size:54px; font-weight:900; text-align:center; margin-top:14px; }
+  .msub { font-size:32px; line-height:1.4; color:#a8a29e; text-align:center; margin-top:16px; padding:0 10px; }
+  .pt { display:flex; gap:24px; margin-top:34px; }
+  .pt .i { font-size:44px; width:56px; text-align:center; }
+  .pt .x { flex:1; font-size:31px; line-height:1.4; }
+  .pt .x b { font-weight:800; }
+  .btn { background:#EA580C; color:#fff; font-weight:900; font-size:38px; text-align:center; padding:34px; border-radius:26px; margin-top:44px; }
+  .notnow { color:#a8a29e; font-weight:700; font-size:34px; text-align:center; padding:34px; }
+  .faded { opacity:.28; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <!-- SCREEN 1: workout -->
+  <div class="screen" id="s1">
+    <div class="cap">
+      <span class="pill"><span class="dot">●</span> Daily Intel</span>
+      <div class="headline">Never Walk In<br><span class="o">Unprepared</span></div>
+      <div class="sub">Get community-sourced treadmill, rower, and floor templates before your class.</div>
+    </div>
+    <div class="phone"><div class="app">
+      <div class="statusbar"><span>8:30</span><span class="r"><span>●●●</span><span>📶</span><span class="batt">51</span></span></div>
+      <div class="apphead">
+        <div class="t"><div class="appname">OTF Workouts</div><div class="appsub">Today's OTF class, as the community posted it</div></div>
+        <div class="onpill">🔔 On</div>
+      </div>
+      <div class="chips"><span class="chip sel">Today</span><span class="chip">Yesterday</span><span class="chip">Wed 23</span><span class="chip">Tue 22</span></div>
+      <div class="daytitle"><span class="d">Today</span><span class="badge">2G</span></div>
+      <div class="card"><div class="cardh p">📝 Overview</div>
+        <div class="noteln">2G intel</div>
+        <div class="noteln">Repeat of the benchmark revenge template from the 9th of September.</div>
+      </div>
+      <div class="card tread"><div class="cardh o">🏃 Tread / Floor Block 1 – 10 minutes</div>
+        <div class="blt"><span class="b">•</span><span class="x">Goal: reach highest incline possible</span></div>
+        <div class="blt"><span class="b">•</span><span class="x">240m tread @ 1% (PW 120m)</span></div>
+        <div class="blt"><span class="b">•</span><span class="x">8 × dumbbell tap front squat</span></div>
+        <div class="blt"><span class="b">•</span><span class="x">8 × neutral grip shoulder press</span></div>
+        <div class="blt"><span class="b">•</span><span class="x">8 × low row, then rest</span></div>
+      </div>
+      <div class="card" style="border-left-color:#0891b2"><div class="cardh" style="color:#22d3ee">🚣 Row Block – 10 minutes</div>
+        <div class="blt"><span class="b" style="color:#22d3ee">•</span><span class="x">Buy-in: 3.5 min row for distance</span></div>
+        <div class="blt"><span class="b" style="color:#22d3ee">•</span><span class="x">Rack &amp; rest: 30 sec all-out / 30 sec rest ×6</span></div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- SCREEN 2: notifications -->
+  <div class="screen" id="s2">
+    <div class="cap">
+      <span class="pill">🔔 Instant Intel Alerts</span>
+      <div class="headline">Get Today's<br><span class="o">Workout First</span></div>
+      <div class="sub">Turn on notifications and get the day's class the second it drops. Never walk into class unprepared.</div>
+    </div>
+    <div class="phone"><div class="app">
+      <div class="statusbar"><span>8:30</span><span class="r"><span>●●●</span><span>📶</span><span class="batt">51</span></span></div>
+      <div class="apphead faded"><div class="t"><div class="appname">OTF Workouts</div><div class="appsub">Today's OTF class</div></div></div>
+      <div class="chips faded"><span class="chip sel">Today</span><span class="chip">Yesterday</span><span class="chip">Wed 23</span></div>
+      <div class="dim"></div>
+      <div class="modal">
+        <div class="bell">🔔</div>
+        <div class="mtitle">Get today's workout first</div>
+        <div class="msub">Turn on notifications and we'll send you the day's OTF class as soon as it's posted.</div>
+        <div class="pt"><span class="i">⚡</span><span class="x"><b>Know the moment it drops.</b> We watch the r/orangetheory thread and ping you as soon as the workout is posted.</span></div>
+        <div class="pt"><span class="i">🕕</span><span class="x"><b>A heads-up before class.</b> The alert usually lands within ~10 minutes of the workout being posted.</span></div>
+        <div class="pt"><span class="i">😴</span><span class="x"><b>Never at a bad hour.</b> Alerts are held until 6am your time — one a day, nothing overnight.</span></div>
+        <div class="btn">Turn on notifications</div>
+        <div class="notnow">Not now</div>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<script>
+async function renderToPng(id){
+  const node = document.getElementById(id);
+  const clone = node.cloneNode(true);
+  const css = document.querySelector('style').textContent;
+  const xhtml = new XMLSerializer().serializeToString(clone);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1290" height="2796">`+
+    `<foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml"><style>${css}</style>${xhtml}</div></foreignObject></svg>`;
+  const img = new Image();
+  await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg); });
+  const cv = document.createElement('canvas'); cv.width=1290; cv.height=2796;
+  const ctx = cv.getContext('2d'); ctx.drawImage(img,0,0);
+  return cv.toDataURL('image/png').split(',')[1];
+}
+window.__make = async ()=>{ window.__p1 = await renderToPng('s1'); window.__p2 = await renderToPng('s2'); window.__ready = true; return {p1:window.__p1.length, p2:window.__p2.length}; };
+</script>
+</body>
+</html>
