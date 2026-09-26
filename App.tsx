@@ -175,7 +175,7 @@ function Home() {
       />
       <View style={styles.header}>
         <View style={styles.headerText}>
-          <Text style={[styles.appName, { color: c.accent }]}>OTF Workouts</Text>
+          <Text style={[styles.appName, { color: c.accent }]}>OTF Guide</Text>
           <Text style={[styles.subtitle, { color: c.muted }]}>Today's OTF class, as the community posted it</Text>
         </View>
         {notificationsSupported && (
