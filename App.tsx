@@ -26,6 +26,13 @@ import {
   notificationsSupported,
   refreshRegistration,
 } from './src/notifications';
+import {
+  blockAuthor,
+  isHidden,
+  loadModeration,
+  reportPost,
+  type Moderation,
+} from './src/moderation';
 import type { DailyWorkout, Station, WorkoutPost } from './src/types';
 import { dateFor, loadWorkout } from './src/workouts';
 
@@ -125,7 +132,36 @@ function Home() {
     setRefreshing(false);
   };
 
-  const [top, ...others] = workout?.posts ?? [];
+  // Content moderation (Apple Guideline 1.2): let users report/hide posts and block authors.
+  const [mod, setMod] = useState<Moderation>({ authors: new Set(), posts: new Set() });
+  useEffect(() => {
+    loadModeration().then(setMod);
+  }, []);
+
+  const moderate = (post: WorkoutPost) => {
+    Alert.alert('Report or hide', `Posted by u/${post.author}`, [
+      {
+        text: 'Report this post',
+        style: 'destructive',
+        onPress: async () => {
+          await reportPost(post);
+          setMod(await loadModeration());
+          Alert.alert('Thanks', 'This post has been reported and hidden. We review reports within 24 hours.');
+        },
+      },
+      {
+        text: `Hide posts from u/${post.author}`,
+        onPress: async () => {
+          await blockAuthor(post.author);
+          setMod(await loadModeration());
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const visiblePosts = (workout?.posts ?? []).filter((p) => !isHidden(p, mod));
+  const [top, ...others] = visiblePosts;
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: c.bg }]}>
@@ -213,13 +249,13 @@ function Home() {
               <SectionCard key={i} c={c} station={section.station} title={section.title} lines={section.lines} />
             ))}
             <WorkoutImages c={c} urls={top.imageUrls} />
-            <Credit c={c} post={top} />
+            <Credit c={c} post={top} onReport={() => moderate(top)} />
 
             {others.length > 0 && (
               <>
                 <Text style={[styles.moreHeading, { color: c.muted }]}>OTHER STUDIOS' VERSIONS ({others.length})</Text>
                 {others.map((post) => (
-                  <OtherPost key={post.id} c={c} post={post} />
+                  <OtherPost key={post.id} c={c} post={post} onReport={() => moderate(post)} />
                 ))}
               </>
             )}
@@ -231,9 +267,12 @@ function Home() {
         )}
 
         <Text style={[styles.disclaimer, { color: c.muted }]}>
-          Workouts are posted by r/orangetheory members and can differ between studios. This app is unofficial and not
-          affiliated with Orangetheory Fitness.
+          Workouts are posted by r/orangetheory members and can differ between studios. Tap “Report” on any post to flag
+          content or hide a poster. This app is unofficial and not affiliated with Orangetheory Fitness.
         </Text>
+        <Pressable onPress={() => Linking.openURL('https://anthonygeranio.github.io/otfworkouts/terms.html')}>
+          <Text style={[styles.termsLink, { color: c.muted }]}>Terms of Use</Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -343,17 +382,22 @@ function WorkoutImages({ c, urls }: { c: Colors; urls?: string[] }) {
   );
 }
 
-function Credit({ c, post }: { c: Colors; post: WorkoutPost }) {
+function Credit({ c, post, onReport }: { c: Colors; post: WorkoutPost; onReport: () => void }) {
   return (
-    <Pressable onPress={() => Linking.openURL(post.permalink)}>
-      <Text style={[styles.credit, { color: c.muted }]}>
-        {post.score != null ? `▲ ${post.score} · ` : ''}posted by u/{post.author} · view comment ↗
-      </Text>
-    </Pressable>
+    <View style={styles.creditRow}>
+      <Pressable onPress={() => Linking.openURL(post.permalink)} style={styles.creditFlex}>
+        <Text style={[styles.credit, { color: c.muted }]}>
+          {post.score != null ? `▲ ${post.score} · ` : ''}posted by u/{post.author} · view comment ↗
+        </Text>
+      </Pressable>
+      <Pressable onPress={onReport} hitSlop={10} accessibilityLabel="Report or hide this post">
+        <Text style={[styles.reportBtn, { color: c.muted }]}>⋯ Report</Text>
+      </Pressable>
+    </View>
   );
 }
 
-function OtherPost({ c, post }: { c: Colors; post: WorkoutPost }) {
+function OtherPost({ c, post, onReport }: { c: Colors; post: WorkoutPost; onReport: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <View style={[styles.other, { backgroundColor: c.card, borderColor: c.border }]}>
@@ -367,7 +411,7 @@ function OtherPost({ c, post }: { c: Colors; post: WorkoutPost }) {
             <SectionCard key={i} c={c} station={s.station} title={s.title} lines={s.lines} />
           ))}
           <WorkoutImages c={c} urls={post.imageUrls} />
-          <Credit c={c} post={post} />
+          <Credit c={c} post={post} onReport={onReport} />
         </View>
       )}
     </View>
@@ -410,7 +454,11 @@ const styles = StyleSheet.create({
   bulletText: { flex: 1, fontSize: 15, lineHeight: 22 },
   transition: { fontSize: 13, fontStyle: 'italic', marginTop: 2, marginBottom: 6 },
   workoutImage: { width: '100%', height: 320, borderRadius: 12, borderWidth: 1 },
-  credit: { fontSize: 13, textAlign: 'right' },
+  creditRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 2 },
+  creditFlex: { flex: 1 },
+  credit: { fontSize: 13 },
+  reportBtn: { fontSize: 13, fontWeight: '600' },
+  termsLink: { fontSize: 12, textAlign: 'center', marginTop: 8, textDecorationLine: 'underline' },
   moreHeading: { fontSize: 12, fontWeight: '700', letterSpacing: 1, marginTop: 16 },
   other: { borderWidth: 1, borderRadius: 12 },
   otherHeader: { flexDirection: 'row', justifyContent: 'space-between', padding: 14 },

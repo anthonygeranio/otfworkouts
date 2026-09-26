@@ -125,6 +125,23 @@ async function handleDevices(request: Request, env: Env): Promise<Response> {
   return json({ ok: true });
 }
 
+async function handleReport(request: Request, env: Env): Promise<Response> {
+  let body: { postId?: unknown; author?: unknown; permalink?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: 'Invalid JSON' }, 400);
+  }
+  if (typeof body.postId !== 'string' || body.postId.length > 64) return json({ error: 'postId required' }, 400);
+  const author = typeof body.author === 'string' ? body.author.slice(0, 64) : null;
+  const permalink = typeof body.permalink === 'string' ? body.permalink.slice(0, 300) : null;
+  await env.DB.prepare(`INSERT INTO reports (post_id, author, permalink) VALUES (?1, ?2, ?3)`)
+    .bind(body.postId, author, permalink)
+    .run();
+  console.log(`Report received for post ${body.postId} by ${author}`);
+  return json({ ok: true });
+}
+
 export default {
   async fetch(request, env): Promise<Response> {
     const url = new URL(request.url);
@@ -141,6 +158,9 @@ export default {
     }
     if (url.pathname === '/devices' && (request.method === 'POST' || request.method === 'DELETE')) {
       return handleDevices(request, env);
+    }
+    if (url.pathname === '/report' && request.method === 'POST') {
+      return handleReport(request, env);
     }
     if (url.pathname === '/health' && request.method === 'GET') {
       return json({ ok: true, current: await readState(env, 'current') });

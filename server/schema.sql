@@ -12,3 +12,12 @@ CREATE TABLE IF NOT EXISTS state (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- User reports of objectionable content (Apple Guideline 1.2). Reviewed within 24h.
+CREATE TABLE IF NOT EXISTS reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id TEXT NOT NULL,
+  author TEXT,
+  permalink TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
