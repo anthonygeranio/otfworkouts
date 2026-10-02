@@ -49,13 +49,36 @@ async function writeState(env: Env, key: string, value: unknown) {
     .run();
 }
 
-/** Returns the cached workout for a date, fetching and caching it when missing or stale. */
+/**
+ * Returns the cached workout for a date, fetching and caching it when missing or
+ * stale. Reddit sometimes rate-limits (429) our fetches; on any fetch error we
+ * fall back to the cached copy or null and never throw, so the app shows a clean
+ * empty state instead of an error.
+ */
 async function getWorkout(env: Env, date: string): Promise<DailyWorkout | null> {
   const cached = await readState<DailyWorkout>(env, `workout:${date}`);
   if (cached && Date.now() - Date.parse(cached.fetchedAt) < WORKOUT_TTL_MS) return cached;
-  const fresh = await fetchDailyWorkout(env, date);
-  if (fresh) await writeState(env, `workout:${date}`, fresh);
-  return fresh ?? cached;
+  try {
+    const fresh = await fetchDailyWorkout(env, date);
+    if (fresh) await writeState(env, `workout:${date}`, fresh);
+    return fresh ?? cached;
+  } catch (e) {
+    console.warn(`getWorkout(${date}) fetch failed, serving cache/null: ${e instanceof Error ? e.message : e}`);
+    return cached;
+  }
+}
+
+/** Best-effort cache warming for recent days so past-day taps are served instantly. */
+async function warmRecentDays(env: Env, now: Date, days = 7) {
+  for (let i = 1; i <= days; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const cached = await readState<DailyWorkout>(env, `workout:${date}`);
+    if (cached && Date.now() - Date.parse(cached.fetchedAt) < WORKOUT_TTL_MS) continue;
+    await getWorkout(env, date); // caches on success, swallows errors
+    await new Promise((r) => setTimeout(r, 1500)); // gentle on Reddit
+  }
 }
 
 async function deliver(env: Env, current: Current, now: Date) {
@@ -86,17 +109,24 @@ async function deliver(env: Env, current: Current, now: Date) {
 
 export async function runCheck(env: Env, now = new Date()) {
   const date = await latestDailyDate(env);
-  if (!date) return;
-  const workout = await getWorkout(env, date);
-  if (!workout || !workout.posts.length) return;
-
-  let current = await readState<Current>(env, 'current');
-  if (current?.date !== date) {
-    current = { date, summary: workoutSummary(workout.posts[0].body), foundAt: now.toISOString() };
-    await writeState(env, 'current', current);
-    console.log(`New workout detected for ${date}`);
+  if (!date) {
+    await warmRecentDays(env, now);
+    return;
   }
-  await deliver(env, current, now);
+  const workout = await getWorkout(env, date);
+
+  if (workout && workout.posts.length) {
+    let current = await readState<Current>(env, 'current');
+    if (current?.date !== date) {
+      current = { date, summary: workoutSummary(workout.posts[0].body), foundAt: now.toISOString() };
+      await writeState(env, 'current', current);
+      console.log(`New workout detected for ${date}`);
+    }
+    await deliver(env, current, now);
+  }
+
+  // Keep the last week warm so past-day taps are served from cache, not a live fetch.
+  await warmRecentDays(env, now);
 }
 
 async function handleDevices(request: Request, env: Env): Promise<Response> {
@@ -150,11 +180,9 @@ export default {
     if (url.pathname === '/workout' && request.method === 'GET') {
       const date = url.searchParams.get('date') ?? '';
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: 'date=YYYY-MM-DD required' }, 400);
-      try {
-        return json({ workout: await getWorkout(env, date) });
-      } catch (e) {
-        return json({ error: e instanceof Error ? e.message : 'fetch failed' }, 502);
-      }
+      // getWorkout never throws; a missing day returns { workout: null } so the
+      // app shows a friendly empty state rather than an error.
+      return json({ workout: await getWorkout(env, date) });
     }
     if (url.pathname === '/devices' && (request.method === 'POST' || request.method === 'DELETE')) {
       return handleDevices(request, env);

@@ -231,8 +231,12 @@ function Home() {
         ) : !workout || !top ? (
           <Empty
             c={c}
-            title="Nothing posted yet"
-            body={daysAgo === 0 ? 'The community usually posts after the first classes. Pull down to check again.' : 'No workout was found for this day.'}
+            title={daysAgo === 0 ? 'Not posted yet' : 'Not available yet'}
+            body={
+              daysAgo === 0
+                ? "Today's workout usually goes up after the first classes. Pull down to check again."
+                : "The workout for this day isn't available yet. Pull down to try again."
+            }
           />
         ) : (
           <>
