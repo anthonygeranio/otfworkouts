@@ -1,7 +1,8 @@
 import { workoutSummary } from '../../src/redditThread';
+import type { FeedPost } from '../../src/rssParser';
 import type { DailyWorkout } from '../../src/types';
 import { sendPushes, type PushMessage } from './push';
-import { fetchDailyWorkout, latestDailyDate, type RedditEnv } from './reddit';
+import { fetchListing, parseDailyThreads, threadDate, workoutForThread, type RedditEnv } from './reddit';
 
 interface Env extends RedditEnv {
   DB: D1Database;
@@ -55,28 +56,87 @@ async function writeState(env: Env, key: string, value: unknown) {
  * fall back to the cached copy or null and never throw, so the app shows a clean
  * empty state instead of an error.
  */
-async function getWorkout(env: Env, date: string): Promise<DailyWorkout | null> {
+interface ThreadIndex {
+  threads: FeedPost[];
+  fetchedAt: string;
+}
+
+// Reddit heavily rate-limits the big listing, so we keep a small index of the
+// daily threads and only refresh it occasionally. If a refresh is throttled we
+// keep using the stored index rather than failing the run.
+const THREAD_INDEX_TTL_MS = 30 * 60 * 1000;
+
+async function getThreads(env: Env): Promise<FeedPost[]> {
+  const stored = await readState<ThreadIndex>(env, 'threads');
+  if (stored && Date.now() - Date.parse(stored.fetchedAt) < THREAD_INDEX_TTL_MS) return stored.threads;
+
+  const listing = await fetchListing(env);
+  if (!listing) {
+    if (stored) {
+      console.warn(`listing throttled; using stored thread index (${stored.threads.length} threads)`);
+      return stored.threads;
+    }
+    return [];
+  }
+  const threads = parseDailyThreads(listing);
+  if (threads.length) await writeState(env, 'threads', { threads, fetchedAt: new Date().toISOString() });
+  return threads;
+}
+
+async function getWorkout(env: Env, date: string, threads?: FeedPost[]): Promise<DailyWorkout | null> {
   const cached = await readState<DailyWorkout>(env, `workout:${date}`);
   if (cached && Date.now() - Date.parse(cached.fetchedAt) < WORKOUT_TTL_MS) return cached;
   try {
-    const fresh = await fetchDailyWorkout(env, date);
+    const list = threads ?? (await getThreads(env));
+    const thread = list.find((t) => threadDate(t) === date);
+    if (!thread) return cached;
+    const fresh = await workoutForThread(env, thread, date);
     if (fresh) await writeState(env, `workout:${date}`, fresh);
     return fresh ?? cached;
   } catch (e) {
+    await noteFailure(env, date);
     console.warn(`getWorkout(${date}) fetch failed, serving cache/null: ${e instanceof Error ? e.message : e}`);
     return cached;
   }
 }
 
-/** Best-effort cache warming for recent days so past-day taps are served instantly. */
-async function warmRecentDays(env: Env, now: Date, days = 7) {
-  for (let i = 1; i <= days; i++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+/**
+ * Warms recent days using a listing we already have, so each day costs one small
+ * comment fetch instead of re-downloading the whole listing. Best-effort: any
+ * failure is logged and skipped so the run always finishes.
+ */
+// After a throttled fetch, leave that day alone for a while instead of retrying it
+// every run — repeatedly hammering a 429'd day is what starves the days that would
+// have succeeded.
+const FAIL_BACKOFF_MS = 25 * 60 * 1000;
+
+async function recentlyFailed(env: Env, date: string): Promise<boolean> {
+  const at = await readState<string>(env, `fail:${date}`);
+  return !!at && Date.now() - Date.parse(at) < FAIL_BACKOFF_MS;
+}
+
+const noteFailure = (env: Env, date: string) => writeState(env, `fail:${date}`, new Date().toISOString());
+
+async function warmRecentDays(env: Env, threads: FeedPost[], skip: Set<string>, budget = 2) {
+  let fetched = 0;
+  for (const thread of threads) {
+    if (fetched >= budget) break;
+    const date = threadDate(thread);
+    if (!date || skip.has(date)) continue;
     const cached = await readState<DailyWorkout>(env, `workout:${date}`);
     if (cached && Date.now() - Date.parse(cached.fetchedAt) < WORKOUT_TTL_MS) continue;
-    await getWorkout(env, date); // caches on success, swallows errors
+    if (await recentlyFailed(env, date)) continue;
+    try {
+      const fresh = await workoutForThread(env, thread, date);
+      if (fresh) {
+        await writeState(env, `workout:${date}`, fresh);
+        console.log(`warmed ${date} (${fresh.posts.length} posts)`);
+      }
+    } catch (e) {
+      await noteFailure(env, date);
+      console.warn(`warm ${date} failed: ${e instanceof Error ? e.message : e}`);
+    }
+    fetched++;
     await new Promise((r) => setTimeout(r, 1500)); // gentle on Reddit
   }
 }
@@ -108,14 +168,29 @@ async function deliver(env: Env, current: Current, now: Date) {
 }
 
 export async function runCheck(env: Env, now = new Date()) {
-  const date = await latestDailyDate(env);
-  if (!date) {
-    await warmRecentDays(env, now);
+  const threads = await getThreads(env);
+  if (!threads.length) {
+    console.warn('runCheck: no thread index available, skipping this run');
     return;
   }
-  const workout = await getWorkout(env, date);
+  console.log(`runCheck: ${threads.length} daily threads, newest ${threadDate(threads[0])}`);
 
-  if (workout && workout.posts.length) {
+  // Newest first. The next day's thread is usually posted the evening before and
+  // has no workout yet, so fall through to the most recent day that actually has one.
+  const attempted = new Set<string>();
+  for (const thread of threads.slice(0, 3)) {
+    const date = threadDate(thread);
+    if (!date || (await recentlyFailed(env, date))) continue;
+    attempted.add(date);
+    let workout: DailyWorkout | null = null;
+    try {
+      workout = await getWorkout(env, date, threads);
+    } catch (e) {
+      await noteFailure(env, date);
+      console.warn(`runCheck ${date} failed: ${e instanceof Error ? e.message : e}`);
+    }
+    if (!workout || !workout.posts.length) continue;
+
     let current = await readState<Current>(env, 'current');
     if (current?.date !== date) {
       current = { date, summary: workoutSummary(workout.posts[0].body), foundAt: now.toISOString() };
@@ -123,10 +198,11 @@ export async function runCheck(env: Env, now = new Date()) {
       console.log(`New workout detected for ${date}`);
     }
     await deliver(env, current, now);
+    break;
   }
 
-  // Keep the last week warm so past-day taps are served from cache, not a live fetch.
-  await warmRecentDays(env, now);
+  // Keep recent days warm so past-day taps are served from cache, not a live fetch.
+  await warmRecentDays(env, threads.slice(0, 8), attempted);
 }
 
 async function handleDevices(request: Request, env: Env): Promise<Response> {
@@ -189,6 +265,16 @@ export default {
     }
     if (url.pathname === '/report' && request.method === 'POST') {
       return handleReport(request, env);
+    }
+    // Manual trigger for the same work the cron does: lets us run/verify the check
+    // on demand (and acts as a fallback if the scheduled trigger misfires).
+    if (url.pathname === '/run-check' && request.method === 'POST') {
+      try {
+        await runCheck(env);
+        return json({ ok: true, current: await readState(env, 'current') });
+      } catch (e) {
+        return json({ ok: false, error: e instanceof Error ? e.message : String(e) }, 500);
+      }
     }
     if (url.pathname === '/health' && request.method === 'GET') {
       return json({ ok: true, current: await readState(env, 'current') });
