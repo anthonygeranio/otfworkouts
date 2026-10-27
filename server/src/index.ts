@@ -19,6 +19,20 @@ const QUIET_START_HOUR = 22;
 const QUIET_END_HOUR = 6;
 // Re-fetch a cached day older than this, so edits and deletions on Reddit propagate.
 const WORKOUT_TTL_MS = 6 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+// A finished day's thread no longer changes, so we fetch it once and keep it. Reddit
+// rate-limits hard, and re-reading settled days is what starved the days that mattered.
+// Today and yesterday stay refreshable: today's thread fills up as the day goes on, and
+// "yesterday" by UTC can still be today in US time zones. If a post from a sealed day is
+// reported, handleReport drops that day so a removal on Reddit still propagates.
+const SEAL_AFTER_DAYS = 2;
+
+const isSealed = (date: string) => Date.now() - Date.parse(`${date}T00:00:00Z`) >= SEAL_AFTER_DAYS * DAY_MS;
+
+function cacheUsable(cached: DailyWorkout | null, date: string): cached is DailyWorkout {
+  if (!cached) return false;
+  return isSealed(date) || Date.now() - Date.parse(cached.fetchedAt) < WORKOUT_TTL_MS;
+}
 const PUSH_TOKEN_PATTERN = /^Expo(nent)?PushToken\[[^\]]+\]$/;
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' };
 
@@ -85,7 +99,7 @@ async function getThreads(env: Env): Promise<FeedPost[]> {
 
 async function getWorkout(env: Env, date: string, threads?: FeedPost[]): Promise<DailyWorkout | null> {
   const cached = await readState<DailyWorkout>(env, `workout:${date}`);
-  if (cached && Date.now() - Date.parse(cached.fetchedAt) < WORKOUT_TTL_MS) return cached;
+  if (cacheUsable(cached, date)) return cached;
   try {
     const list = threads ?? (await getThreads(env));
     const thread = list.find((t) => threadDate(t) === date);
@@ -124,7 +138,7 @@ async function warmRecentDays(env: Env, threads: FeedPost[], skip: Set<string>, 
     const date = threadDate(thread);
     if (!date || skip.has(date)) continue;
     const cached = await readState<DailyWorkout>(env, `workout:${date}`);
-    if (cached && Date.now() - Date.parse(cached.fetchedAt) < WORKOUT_TTL_MS) continue;
+    if (cacheUsable(cached, date)) continue;
     if (await recentlyFailed(env, date)) continue;
     try {
       const fresh = await workoutForThread(env, thread, date);
@@ -139,6 +153,17 @@ async function warmRecentDays(env: Env, threads: FeedPost[], skip: Set<string>, 
     fetched++;
     await new Promise((r) => setTimeout(r, 1500)); // gentle on Reddit
   }
+}
+
+// A workout is posted every day, so `current` falling this far behind means the pipeline
+// is broken, not that the community went quiet. The last outage ran nine days unnoticed.
+const STALE_AFTER_HOURS = 36;
+
+async function staleness(env: Env) {
+  const current = await readState<Current>(env, 'current');
+  if (!current) return { stale: true, lastFound: null, hoursBehind: null };
+  const hoursBehind = Math.floor((Date.now() - Date.parse(`${current.date}T00:00:00Z`)) / (60 * 60 * 1000));
+  return { stale: hoursBehind >= STALE_AFTER_HOURS, lastFound: current.date, hoursBehind };
 }
 
 async function deliver(env: Env, current: Current, now: Date) {
@@ -203,6 +228,11 @@ export async function runCheck(env: Env, now = new Date()) {
 
   // Keep recent days warm so past-day taps are served from cache, not a live fetch.
   await warmRecentDays(env, threads.slice(0, 8), attempted);
+
+  const health = await staleness(env);
+  if (health.stale) {
+    console.error(`STALE: no workout found since ${health.lastFound ?? 'ever'} (${health.hoursBehind}h behind)`);
+  }
 }
 
 async function handleDevices(request: Request, env: Env): Promise<Response> {
@@ -231,6 +261,26 @@ async function handleDevices(request: Request, env: Env): Promise<Response> {
   return json({ ok: true });
 }
 
+/**
+ * Sealed days are never re-fetched, so a post removed on Reddit would otherwise stay in
+ * our cache forever. Dropping the day that holds a reported post makes the next request
+ * for it fetch fresh, which is where a removal (or an edit) takes effect.
+ */
+async function invalidateDayForPost(env: Env, postId: string) {
+  // Reddit ids look like "t1_19rj7hx6b4g2t"; anything else we don't put into a LIKE
+  // pattern. `_` is a LIKE wildcard, so escape it rather than let it match loosely.
+  if (!/^[a-z0-9_]+$/i.test(postId)) return;
+  const needle = `%"${postId.replace(/[%_\\]/g, '\\$&')}"%`;
+  const row = await env.DB.prepare(
+    `SELECT key FROM state WHERE key LIKE 'workout:%' AND value LIKE ?1 ESCAPE '\\' LIMIT 1`,
+  )
+    .bind(needle)
+    .first<{ key: string }>();
+  if (!row) return;
+  await env.DB.prepare(`DELETE FROM state WHERE key = ?1`).bind(row.key).run();
+  console.log(`Report on ${postId}: cleared ${row.key} so a removal propagates`);
+}
+
 async function handleReport(request: Request, env: Env): Promise<Response> {
   let body: { postId?: unknown; author?: unknown; permalink?: unknown };
   try {
@@ -245,6 +295,7 @@ async function handleReport(request: Request, env: Env): Promise<Response> {
     .bind(body.postId, author, permalink)
     .run();
   console.log(`Report received for post ${body.postId} by ${author}`);
+  await invalidateDayForPost(env, body.postId);
   return json({ ok: true });
 }
 
@@ -277,7 +328,7 @@ export default {
       }
     }
     if (url.pathname === '/health' && request.method === 'GET') {
-      return json({ ok: true, current: await readState(env, 'current') });
+      return json({ ok: true, current: await readState(env, 'current'), ...(await staleness(env)) });
     }
     return json({ error: 'Not found' }, 404);
   },
