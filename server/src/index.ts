@@ -6,6 +6,8 @@ import { fetchListing, parseDailyThreads, threadDate, workoutForThread, type Red
 
 interface Env extends RedditEnv {
   DB: D1Database;
+  /** Set via `wrangler secret put ADMIN_SECRET` to enable POST /test-alert. */
+  ADMIN_SECRET?: string;
 }
 
 interface Current {
@@ -159,7 +161,30 @@ async function warmRecentDays(env: Env, threads: FeedPost[], skip: Set<string>, 
 // is broken, not that the community went quiet. The last outage ran nine days unnoticed.
 const STALE_AFTER_HOURS = 36;
 
-async function staleness(env: Env) {
+// One alert per outage, not one per cron run.
+const ALERT_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+type Staleness = { stale: boolean; lastFound: string | null; hoursBehind: number | null };
+
+/** Pushes a stale-data warning to the maintainer's own devices (state key `alert_tokens`). */
+async function alertStale(env: Env, health: Staleness) {
+  const last = await readState<string>(env, 'alert_sent');
+  if (last && Date.now() - Date.parse(last) < ALERT_COOLDOWN_MS) return;
+  const tokens = (await readState<string[]>(env, 'alert_tokens')) ?? [];
+  if (!tokens.length) return;
+  await sendPushes(
+    tokens.map((to) => ({
+      to,
+      title: 'OTF Guide: data is stale',
+      body: `No workout found for ${health.hoursBehind}h (last: ${health.lastFound ?? 'never'}).`,
+      data: { alert: 'stale' },
+    })),
+  );
+  await writeState(env, 'alert_sent', new Date().toISOString());
+  console.error(`stale alert sent to ${tokens.length} device(s)`);
+}
+
+async function staleness(env: Env): Promise<Staleness> {
   const current = await readState<Current>(env, 'current');
   if (!current) return { stale: true, lastFound: null, hoursBehind: null };
   const hoursBehind = Math.floor((Date.now() - Date.parse(`${current.date}T00:00:00Z`)) / (60 * 60 * 1000));
@@ -232,6 +257,7 @@ export async function runCheck(env: Env, now = new Date()) {
   const health = await staleness(env);
   if (health.stale) {
     console.error(`STALE: no workout found since ${health.lastFound ?? 'ever'} (${health.hoursBehind}h behind)`);
+    await alertStale(env, health);
   }
 }
 
@@ -326,6 +352,24 @@ export default {
       } catch (e) {
         return json({ ok: false, error: e instanceof Error ? e.message : String(e) }, 500);
       }
+    }
+    // Sends the stale-data alert on demand, so the channel can be verified without
+    // waiting for a real outage. Hidden unless ADMIN_SECRET is set.
+    if (url.pathname === '/test-alert' && request.method === 'POST') {
+      if (!env.ADMIN_SECRET || request.headers.get('X-Admin-Secret') !== env.ADMIN_SECRET) {
+        return json({ error: 'Not found' }, 404);
+      }
+      const tokens = (await readState<string[]>(env, 'alert_tokens')) ?? [];
+      if (!tokens.length) return json({ ok: false, error: 'no alert_tokens configured' }, 400);
+      const outcomes = await sendPushes(
+        tokens.map((to) => ({
+          to,
+          title: 'OTF Guide: alert test',
+          body: 'Stale-data alerts will arrive here.',
+          data: { alert: 'test' },
+        })),
+      );
+      return json({ ok: true, outcomes: Object.fromEntries(outcomes) });
     }
     if (url.pathname === '/health' && request.method === 'GET') {
       return json({ ok: true, current: await readState(env, 'current'), ...(await staleness(env)) });
